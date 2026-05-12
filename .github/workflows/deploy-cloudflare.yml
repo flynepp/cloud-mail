@@ -19,6 +19,7 @@ jobs:
       DOMAIN: ${{ secrets.DOMAIN || vars.DOMAIN }}
       ADMIN: ${{ secrets.ADMIN || vars.ADMIN }}
       JWT_SECRET: ${{ secrets.JWT_SECRET || vars.JWT_SECRET }}
+      INIT_TOKEN: ${{ secrets.INIT_TOKEN || vars.INIT_TOKEN }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || vars.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
       D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID || vars.D1_DATABASE_ID }}
@@ -31,7 +32,6 @@ jobs:
 
     outputs:
       worker_url: ${{ steps.deploy.outputs.worker_url }}
-
 
     steps:
       - name: 🚚 检出代码仓库 / Checkout repository
@@ -65,6 +65,11 @@ jobs:
           
           if [ -z "$JWT_SECRET" ] || grep -q '[?%#/\\]' <<< "$JWT_SECRET"; then
             echo "❌ JWT_SECRET variable is empty or contains invalid characters (?, %, #, /, \\)."
+            exit 1
+          fi
+
+          if [ -z "$INIT_TOKEN" ]; then
+            echo "❌ INIT_TOKEN variable cannot be empty."
             exit 1
           fi
           
@@ -232,8 +237,18 @@ jobs:
             echo "❌ Preview URL not available. Please set CUSTOM_DOMAIN."
             exit 1
           fi
+
+          if [ -z "$INIT_TOKEN" ]; then
+            echo "❌ INIT_TOKEN variable cannot be empty."
+            exit 1
+          fi
           
-          HTTP_CODE=$(curl -sL -w "%{http_code}" -o response.txt "$WORKER_URL/api/init/${JWT_SECRET}")
+          HTTP_CODE=$(curl -sL \
+            -H "x-init-token: $INIT_TOKEN" \
+            -w "%{http_code}" \
+            -o response.txt \
+            "$WORKER_URL/api/init/${JWT_SECRET}")
+
           RESPONSE_BODY=$(cat response.txt)
 
           if [ "$RESPONSE_BODY" = "success" ]; then
